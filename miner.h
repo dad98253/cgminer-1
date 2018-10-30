@@ -32,6 +32,19 @@
 #include <semaphore.h>
 #endif
 
+#ifdef HAVE_OPENCL
+#ifdef __APPLE_CC__
+#include <OpenCL/opencl.h>
+#else
+#include <CL/cl.h>
+#endif
+#endif /* HAVE_OPENCL */
+
+#ifdef USE_KECCAK
+//#include "keccak.h"
+#define KECCAK_BUFFER_SIZE (20*4)
+#endif
+
 #ifdef STDC_HEADERS
 # include <stdlib.h>
 # include <stddef.h>
@@ -124,6 +137,10 @@ static inline int fsync (int fd)
  #endif
 #endif
 
+
+#ifdef HAVE_ADL
+ #include "ADL_SDK/adl_sdk.h"
+#endif
 
 #ifdef USE_USBUTILS
   #include <libusb.h>
@@ -270,6 +287,7 @@ static inline int fsync (int fd)
 	DRIVER_ADD_COMMAND(bitmain_soc)
 
 #define DRIVER_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
+	DRIVER_ADD_COMMAND(opencl) \
 	FPGA_PARSE_COMMANDS(DRIVER_ADD_COMMAND) \
 	ASIC_PARSE_COMMANDS(DRIVER_ADD_COMMAND)
 
@@ -309,6 +327,45 @@ struct strategies {
 };
 
 struct cgpu_info;
+
+#ifdef HAVE_ADL
+struct gpu_adl {
+	ADLTemperature lpTemperature;
+	int iAdapterIndex;
+	int lpAdapterID;
+	int iBusNumber;
+	char strAdapterName[256];
+
+	ADLPMActivity lpActivity;
+	ADLODParameters lpOdParameters;
+	ADLODPerformanceLevels *DefPerfLev;
+	ADLFanSpeedInfo lpFanSpeedInfo;
+	ADLFanSpeedValue lpFanSpeedValue;
+	ADLFanSpeedValue DefFanSpeedValue;
+
+	int iEngineClock;
+	int iMemoryClock;
+	int iVddc;
+	int iPercentage;
+
+	bool autofan;
+	bool autoengine;
+	bool managed; /* Were the values ever changed on this card */
+
+	int lastengine;
+	int lasttemp;
+	int targetfan;
+	int targettemp;
+	int overtemp;
+	int minspeed;
+	int maxspeed;
+
+	int gpu;
+	bool has_fanspeed;
+	int max_fanspeed_pct;
+	struct gpu_adl *twin;
+};
+#endif
 
 extern void blank_get_statline_before(char *buf, size_t bufsiz, struct cgpu_info __maybe_unused *cgpu);
 
@@ -384,6 +441,16 @@ enum dev_enable {
 	DEV_ENABLED,
 	DEV_DISABLED,
 	DEV_RECOVER,
+};
+
+enum cl_kernels {
+	KL_NONE,
+	KL_POCLBM,
+	KL_PHATK,
+	KL_DIAKGCN,
+	KL_DIABLO,
+	KL_SCRYPT,
+	KL_KECCAK,
 };
 
 enum dev_reason {
@@ -506,6 +573,26 @@ struct cgpu_info {
 	int64_t max_hashes;
 
 	const char *kname;
+#ifdef HAVE_OPENCL
+	bool mapped;
+	int virtual_gpu;
+	int virtual_adl;
+	int intensity;
+	bool dynamic;
+
+	cl_uint vwidth;
+	size_t work_size;
+	enum cl_kernels kernel;
+	cl_ulong max_alloc;
+
+#ifdef USE_SCRYPT
+	int opt_lg, lookup_gap;
+	size_t opt_tc, thread_concurrency;
+	size_t shaders;
+#endif
+	struct timeval tv_gpustart;
+	int intervals;
+#endif
 
 	bool new_work;
 
@@ -519,6 +606,21 @@ struct cgpu_info {
 #endif
 	int cutofftemp;
 
+#ifdef HAVE_ADL
+	bool has_adl;
+	struct gpu_adl adl;
+
+	int gpu_engine;
+	int min_engine;
+	int gpu_fan;
+	int min_fan;
+	int gpu_memclock;
+	int gpu_memdiff;
+	int gpu_powertune;
+	float gpu_vddc;
+	int gpu_engine_exit;
+	int gpu_memclock_exit;
+#endif
 	int64_t diff1;
 	double diff_accepted;
 	double diff_rejected;
@@ -1004,6 +1106,7 @@ extern char *opt_kernel_path;
 extern char *opt_socks_proxy;
 extern int opt_suggest_diff;
 extern char *cgminer_path;
+extern bool opt_fail_only;
 extern bool opt_lowmem;
 extern bool opt_autofan;
 extern bool opt_autoengine;
@@ -1023,6 +1126,7 @@ extern bool opt_api_network;
 extern bool opt_delaynet;
 extern time_t last_getwork;
 extern bool opt_restart;
+extern bool opt_nogpu;
 #ifdef USE_ICARUS
 extern char *opt_icarus_options;
 extern char *opt_icarus_timing;
@@ -1172,6 +1276,14 @@ extern void kill_work(void);
 
 extern void reinit_device(struct cgpu_info *cgpu);
 
+#ifdef HAVE_ADL
+extern bool gpu_stats(int gpu, float *temp, int *engineclock, int *memclock, float *vddc, int *activity, int *fanspeed, int *fanpercent, int *powertune);
+extern int set_fanspeed(int gpu, int iFanSpeed);
+extern int set_vddc(int gpu, float fVddc);
+extern int set_engineclock(int gpu, int iEngineClock);
+extern int set_memoryclock(int gpu, int iMemoryClock);
+#endif
+
 extern void api(int thr_id);
 
 extern struct pool *current_pool(void);
@@ -1183,7 +1295,30 @@ extern void adjust_quota_gcd(void);
 extern struct pool *add_pool(void);
 extern bool add_pool_details(struct pool *pool, bool live, char *url, char *user, char *pass);
 
+#define MAX_GPUDEVICES 16
 #define MAX_DEVICES 4096
+
+#define MIN_SHA_INTENSITY -10
+#define MIN_SHA_INTENSITY_STR "-10"
+#define MAX_SHA_INTENSITY 14
+#define MAX_SHA_INTENSITY_STR "14"
+#define MIN_SCRYPT_INTENSITY 8
+#define MIN_SCRYPT_INTENSITY_STR "8"
+#define MAX_SCRYPT_INTENSITY 20
+#define MAX_SCRYPT_INTENSITY_STR "20"
+#ifdef USE_SCRYPT
+#define MIN_INTENSITY (opt_scrypt ? MIN_SCRYPT_INTENSITY : MIN_SHA_INTENSITY)
+#define MIN_INTENSITY_STR (opt_scrypt ? MIN_SCRYPT_INTENSITY_STR : MIN_SHA_INTENSITY_STR)
+#define MAX_INTENSITY (opt_scrypt ? MAX_SCRYPT_INTENSITY : MAX_SHA_INTENSITY)
+#define MAX_INTENSITY_STR (opt_scrypt ? MAX_SCRYPT_INTENSITY_STR : MAX_SHA_INTENSITY_STR)
+#define MAX_GPU_INTENSITY MAX_SCRYPT_INTENSITY
+#else
+#define MIN_INTENSITY MIN_SHA_INTENSITY
+#define MIN_INTENSITY_STR MIN_SHA_INTENSITY_STR
+#define MAX_INTENSITY MAX_SHA_INTENSITY
+#define MAX_INTENSITY_STR MAX_SHA_INTENSITY_STR
+#define MAX_GPU_INTENSITY MAX_SHA_INTENSITY
+#endif
 
 extern bool hotplug_mode;
 extern int hotplug_time;
@@ -1195,6 +1330,18 @@ extern bool use_syslog;
 extern bool opt_quiet;
 extern struct thr_info *control_thr;
 extern struct thr_info **mining_thr;
+extern struct cgpu_info gpus[MAX_GPUDEVICES];
+extern int gpu_threads;
+#ifdef USE_SCRYPT
+extern bool opt_scrypt;
+#else
+#define opt_scrypt (0)
+#endif
+#ifdef USE_KECCAK
+extern bool opt_keccak;
+#else
+#define opt_keccak (0)
+#endif
 extern double total_secs;
 extern int mining_threads;
 extern int total_devices;
@@ -1223,6 +1370,43 @@ extern double current_diff;
 extern uint64_t best_diff;
 extern struct timeval block_timeval;
 extern char *workpadding;
+
+#ifdef HAVE_OPENCL
+typedef struct {
+	cl_uint ctx_a; cl_uint ctx_b; cl_uint ctx_c; cl_uint ctx_d;
+	cl_uint ctx_e; cl_uint ctx_f; cl_uint ctx_g; cl_uint ctx_h;
+	cl_uint cty_a; cl_uint cty_b; cl_uint cty_c; cl_uint cty_d;
+	cl_uint cty_e; cl_uint cty_f; cl_uint cty_g; cl_uint cty_h;
+	cl_uint merkle; cl_uint ntime; cl_uint nbits; cl_uint nonce;
+	cl_uint fW0; cl_uint fW1; cl_uint fW2; cl_uint fW3; cl_uint fW15;
+	cl_uint fW01r; cl_uint fcty_e; cl_uint fcty_e2;
+	cl_uint W16; cl_uint W17; cl_uint W2;
+	cl_uint PreVal4; cl_uint T1;
+	cl_uint C1addK5; cl_uint D1A; cl_uint W2A; cl_uint W17_2;
+	cl_uint PreVal4addT1; cl_uint T1substate0;
+	cl_uint PreVal4_2;
+	cl_uint PreVal0;
+	cl_uint PreW18;
+	cl_uint PreW19;
+	cl_uint PreW31;
+	cl_uint PreW32;
+
+	/* For diakgcn */
+	cl_uint B1addK6, PreVal0addK7, W16addK16, W17addK17;
+	cl_uint zeroA, zeroB;
+	cl_uint oneA, twoA, threeA, fourA, fiveA, sixA, sevenA;
+#ifdef USE_SCRYPT
+	struct work *work;
+#endif
+#ifdef USE_KECCAK
+	unsigned char keccak_data[KECCAK_BUFFER_SIZE];
+#endif
+} dev_blk_ctx;
+#else
+typedef struct {
+	uint32_t nonce;
+} dev_blk_ctx;
+#endif
 
 #ifdef USE_BITMAIN_SOC
 extern char displayed_hash_rate[16];
@@ -1435,6 +1619,10 @@ struct work {
 	unsigned char   midstate3[32];
 	unsigned char	target[32];
 	unsigned char	hash[32];
+
+#ifdef USE_SCRYPT
+	unsigned char	device_target[32];
+#endif
 
 	uint16_t        micro_job_id;
 

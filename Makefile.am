@@ -15,12 +15,12 @@ else
 LIBCURL_CPPFLAGS =
 endif
 
-EXTRA_DIST	= example.conf linux-usb-cgminer \
-		  api-example.php miner.php	\
+EXTRA_DIST	= example.conf m4/gnulib-cache.m4 linux-usb-cgminer \
+		  ADL_SDK/readme.txt api-example.php miner.php	\
 		  API.class API.java api-example.c windows-build.txt \
-		  bitstreams/README API-README FPGA-README \
+		  bitstreams/README API-README FPGA-README SCRYPT-README \
 		  bitforce-firmware-flash.c hexdump.c ASIC-README \
-		  01-cgminer.rules
+		  01-cgminer.rules GPU-README
 
 SUBDIRS		= lib compat ccan
 
@@ -28,9 +28,11 @@ cgminer_CPPFLAGS = $(PTHREAD_FLAGS) -fno-strict-aliasing $(JANSSON_CPPFLAGS) $(U
 
 bin_PROGRAMS	= cgminer
 
+bin_SCRIPTS	= $(top_srcdir)/*.cl
+
 cgminer_LDFLAGS	= $(PTHREAD_FLAGS)
 cgminer_LDADD	= $(DLOPEN_FLAGS) @LIBCURL_LIBS@ @JANSSON_LIBS@ @LIBZ_LIBS@ @PTHREAD_LIBS@ \
-		  @NCURSES_LIBS@ @PDCURSES_LIBS@ @WS2_LIBS@ \
+		  @OPENCL_LIBS@ @NCURSES_LIBS@ @PDCURSES_LIBS@ @WS2_LIBS@ \
 		  @LIBUSB_LIBS@ @MM_LIBS@ @RT_LIBS@ @LIBSYSTEMD_LIBS@ \
 		  @MATH_LIBS@ lib/libgnu.a ccan/libccan.a
 
@@ -39,6 +41,8 @@ cgminer_CPPFLAGS += -I$(top_builddir)/lib -I$(top_srcdir)/lib
 if !HAVE_WINDOWS
 cgminer_CPPFLAGS += @LIBCURL_CFLAGS@
 endif
+
+cgminer_CPPFLAGS +=  @OPENCL_FLAGS@ $(ADL_CPPFLAGS)
 
 # common sources
 cgminer_SOURCES := cgminer.c
@@ -52,6 +56,23 @@ cgminer_SOURCES	+= logging.c
 cgminer_SOURCES	+= klist.h klist.c
 
 cgminer_SOURCES	+= noncedup.c
+
+# GPU sources, TODO: make them selectable
+# the GPU portion extracted from original main.c
+cgminer_SOURCES += driver-opencl.h driver-opencl.c
+
+# the original GPU related sources, unchanged
+cgminer_SOURCES += ocl.c ocl.h findnonce.c findnonce.h
+cgminer_SOURCES += adl.c adl.h adl_functions.h
+cgminer_SOURCES += *.cl
+
+if HAS_SCRYPT
+cgminer_SOURCES += scrypt.c scrypt.h
+endif
+
+if HAS_KECCAK
+cgminer_SOURCES += keccak.c keccak.h
+endif
 
 if NEED_FPGAUTILS
 cgminer_SOURCES += fpgautils.c fpgautils.h
