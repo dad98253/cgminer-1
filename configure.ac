@@ -207,6 +207,7 @@ AC_ARG_ENABLE([adl],
 
 scrypt="no"
 keccak="no"
+opencl2="no"
 
 if test "$found_opencl" = 1; then
 	if test "x$adl" != xno; then
@@ -221,9 +222,8 @@ if test "$found_opencl" = 1; then
 		else
 			DLOPEN_FLAGS=""
 		fi
-		drivercount=x$drivercount
 	fi
-
+	
 	AC_ARG_ENABLE([scrypt],
 		[AC_HELP_STRING([--enable-scrypt],[Compile support for scrypt litecoin mining (default disabled)])],
 		[scrypt=$enableval]
@@ -241,6 +241,7 @@ if test "$found_opencl" = 1; then
 		AC_DEFINE([USE_KECCAK], [1], [Defined to 1 if keccak support is wanted])
 		drivercount=x$drivercount
 	fi
+	opencl2="yes"
 	drivercount=x$drivercount
 	standalone="yes"
 else
@@ -937,6 +938,7 @@ fi
 if test "x$opencl" != xno; then
 	if test $found_opencl = 1; then
 		echo "  OpenCL...............: FOUND. GPU mining support enabled"
+		opencl2="yes"
 	if test "x$scrypt" != xno; then
 		echo "  scrypt...............: Enabled"
 	else
@@ -950,6 +952,7 @@ if test "x$opencl" != xno; then
 
 	else
 		echo "  OpenCL...............: NOT FOUND. GPU mining support DISABLED"
+		opencl2="no"
 		if test "x$avalon$bitforce$bitfury$icarus$modminer$bflsc$klondike" = xnonononononono; then
 			AC_MSG_ERROR([No mining configured in])
 		fi
@@ -1129,7 +1132,7 @@ else
 fi
 
 #Add any new device to this, along with a no on the end of the test
-if test "x$avalon$avalon2$avalon4$avalon7$avalon_miner$bab$bflsc$bitforce$bitfury$bitfury16$bitmain_soc$blockerupter$hashfast$hashratio$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$ants3$sp10$sp30$dragonmint_t1" = xnononononononononononononononononononononononononononono; then
+if test "x$opencl2$avalon$avalon2$avalon4$avalon7$avalon_miner$bab$bflsc$bitforce$bitfury$bitfury16$bitmain_soc$blockerupter$hashfast$hashratio$icarus$klondike$knc$modminer$drillbit$minion$cointerra$bitmine_A1$ants1$ants2$ants3$sp10$sp30$dragonmint_t1" = xnonononononononononononononononononononononononononononono; then
 	echo
 	AC_MSG_ERROR([No mining devices configured in])
 	echo
