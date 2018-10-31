@@ -500,8 +500,6 @@ const
 #endif
 bool curses_active;
 
-static char current_block[40];
-
 /* Protected by ch_lock */
 char current_hash[68];
 char *current_fullhash;
@@ -1884,6 +1882,7 @@ static struct opt_table opt_config_table[] = {
 #else
 			opt_hidden
 #endif
+			),
 #ifdef HAVE_CURSES
 	OPT_WITHOUT_ARG("--decode",
 			opt_set_bool, &opt_decode,
@@ -5134,25 +5133,6 @@ static inline bool can_roll(struct work *work)
 		work->rolls < 7000 && !stale_work(work, false));
 }
 
-static void roll_work(struct work *work)
-{
-	uint32_t *work_ntime;
-	uint32_t ntime;
-
-	work_ntime = (uint32_t *)(work->data + 68);
-	ntime = le32toh(*work_ntime);
-	ntime++;
-	*work_ntime = htole32(ntime);
-	local_work++;
-	work->rolls++;
-	work->blk.nonce = 0;
-	applog(LOG_DEBUG, "Successfully rolled work");
-
-	/* This is now a different work item so it needs a different ID for the
-	 * hashtable */
-	work->id = total_work++;
-}
-
 static void *submit_work_thread(void *userdata)
 {
 	struct work *work = (struct work *)userdata;
@@ -5194,21 +5174,6 @@ static void *submit_work_thread(void *userdata)
 	push_curl_entry(ce, pool);
 
 	return NULL;
-}
-
-static struct work *make_clone(struct work *work)
-{
-	struct work *work_clone = copy_work(work);
-
-	work_clone->clone = true;
-	cgtime((struct timeval *)&(work_clone->tv_cloned));
-	work_clone->longpoll = false;
-	work_clone->mandatory = false;
-	/* Make cloned work appear slightly older to bias towards keeping the
-	 * master work item which can be further rolled */
-	work_clone->tv_staged.tv_sec -= 1;
-
-	return work_clone;
 }
 
 static void stage_work(struct work *work);
