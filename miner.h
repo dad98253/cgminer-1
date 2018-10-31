@@ -687,7 +687,7 @@ struct thr_info {
 
 	bool	pause;
 	bool	getwork;
-    double  rolling;
+	double	rolling;
 
 	bool	work_restart;
 	bool	work_update;
@@ -1631,8 +1631,12 @@ struct work {
 	 * the minimum of work_difficulty & drv->max_diff */
 	double		device_diff;
 	uint64_t	share_diff;
+	unsigned char	hash2[32];
 
 	int		rolls;
+
+	dev_blk_ctx	blk;
+
 	int		drv_rolllimit; /* How much the driver can roll ntime */
 	uint32_t	nonce; /* For devices that hash sole work */
 
@@ -1778,7 +1782,7 @@ extern void pool_died(struct pool *pool);
 extern struct thread_q *tq_new(void);
 extern void tq_free(struct thread_q *tq);
 extern bool tq_push(struct thread_q *tq, void *data);
-extern void *tq_pop(struct thread_q *tq);
+extern void *tq_pop(struct thread_q *tq, const struct timespec *abstime);
 extern void tq_freeze(struct thread_q *tq);
 extern void tq_thaw(struct thread_q *tq);
 extern bool successful_connect;

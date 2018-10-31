@@ -7625,7 +7625,7 @@ static void *stratum_sthread(void *userdata)
 		if (unlikely(pool->removed))
 			break;
 
-		work = tq_pop(pool->stratum_q);
+		work = tq_pop(pool->stratum_q,NULL);
 		if (unlikely(!work))
 			quit(1, "Stratum q returned empty work");
 
