@@ -687,6 +687,7 @@ struct thr_info {
 
 	bool	pause;
 	bool	getwork;
+    double  rolling;
 
 	bool	work_restart;
 	bool	work_update;

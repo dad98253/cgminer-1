@@ -5175,7 +5175,7 @@ static void *submit_work_thread(void *userdata)
 
 	return NULL;
 }
-
+/*
 static void stage_work(struct work *work);
 
 static bool clone_available(void)
@@ -5206,6 +5206,7 @@ out_unlock:
 	}
 	return cloned;
 }
+*/
 
 /* Clones work by rolling it if possible, and returning a clone instead of the
  * original work item which gets staged again to possibly be rolled again in
@@ -5438,7 +5439,7 @@ static void regen_hash(struct work *work)
 	sha256(swap, 80, hash1);
 	sha256(hash1, 32, (unsigned char *)(work->hash));
 }
-
+/*
 static void rebuild_hash(struct work *work)
 {
 	if (opt_scrypt)
@@ -5448,7 +5449,7 @@ static void rebuild_hash(struct work *work)
 	else
 		regen_hash(work);
 }
-
+*/
 static bool cnx_needed(struct pool *pool);
 
 /* Find the pool that currently has the highest priority */
@@ -5472,10 +5473,10 @@ static struct pool *priority_pool(int choice)
 	}
 	return ret;
 }
-
+/*
 static void clear_pool_work(struct pool *pool);
 
-/* Specifies whether we can switch to this pool or not. */
+// Specifies whether we can switch to this pool or not.
 static bool pool_unusable(struct pool *pool)
 {
 	if (pool->idle)
@@ -5484,7 +5485,7 @@ static bool pool_unusable(struct pool *pool)
 		return true;
 	return false;
 }
-
+*/
 void switch_pools(struct pool *selected)
 {
 	struct pool *pool, *last_pool;
@@ -5912,7 +5913,7 @@ static bool hash_push(struct work *work)
 
 	return rc;
 }
-
+/*
 static void *stage_thread(void *userdata)
 {
 	struct thr_info *mythr = userdata;
@@ -5948,8 +5949,9 @@ static void *stage_thread(void *userdata)
 	tq_freeze(mythr->q);
 	return NULL;
 }
+*/
 
-static void stage_work(struct work *work)
+static void _stage_work(struct work *work)
 {
 	applog(LOG_DEBUG, "Pushing work from pool %d to hash queue", work->pool->pool_no);
 	work->work_block = work_block;
@@ -6194,7 +6196,7 @@ void write_config(FILE *fcfg)
 #endif
 
 	/* Simple bool,int and char options */
-	struct opt_table *opt;
+//	struct opt_table *opt;
 	for (opt = opt_config_table; opt->type != OPT_END; opt++) {
 		char *p, *name = strdup(opt->names);
 
@@ -6269,6 +6271,8 @@ void write_config(FILE *fcfg)
 		fputs(",\n\"round-robin\" : true", fcfg);
 	if (pool_strategy == POOL_ROTATE)
 		fprintf(fcfg, ",\n\"rotate\" : \"%d\"", opt_rotate_period);
+
+// added output related to GPU mining... note that some of this may be wrong...
 #if defined(unix) || defined(__APPLE__)
 	if (opt_stderr_cmd && *opt_stderr_cmd)
 		fprintf(fcfg, ",\n\"monitor\" : \"%s\"", json_escape(opt_stderr_cmd));
@@ -6318,10 +6322,12 @@ void write_config(FILE *fcfg)
 		fprintf(fcfg, ",\n\"api-description\" : \"%s\"", json_escape(opt_api_description));
 	if (opt_api_groups)
 		fprintf(fcfg, ",\n\"api-groups\" : \"%s\"", json_escape(opt_api_groups));
+#ifdef USE_ICARUS
 	if (opt_icarus_options)
 		fprintf(fcfg, ",\n\"icarus-options\" : \"%s\"", json_escape(opt_icarus_options));
 	if (opt_icarus_timing)
 		fprintf(fcfg, ",\n\"icarus-timing\" : \"%s\"", json_escape(opt_icarus_timing));
+#endif
 #ifdef USE_KLONDIKE
 	if (opt_klondike_options)
 		fprintf(fcfg, ",\n\"klondike-options\" : \"%s\"", json_escape(opt_icarus_options));
@@ -6330,6 +6336,8 @@ void write_config(FILE *fcfg)
 	if (opt_usb_select)
 		fprintf(fcfg, ",\n\"usb\" : \"%s\"", json_escape(opt_usb_select));
 #endif
+
+// end of added output
 	fputs("\n}\n", fcfg);
 
 	json_escape_free();
@@ -6771,7 +6779,7 @@ retry:
 	wlogprint("Select an option or any other key to return\n");
 	logwin_update();
 	input = getch();
-
+/*
 	if (!strncasecmp(&input, "q", 1)) {
 		selected = curses_int("Extra work items to queue");
 		if (selected < 0 || selected > 9999) {
@@ -6796,7 +6804,9 @@ retry:
 		}
 		opt_expiry = selected;
 		goto retry;
-	} else if  (!strncasecmp(&input, "w", 1)) {
+*/
+//	} else if  (!strncasecmp(&input, "w", 1)) {
+	if  (!strncasecmp(&input, "w", 1)) {
 		FILE *fcfg;
 		char *str, filename[PATH_MAX], prompt[PATH_MAX + 50];
 
